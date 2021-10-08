@@ -299,5 +299,135 @@ ORDER BY people.namelast*/
 --this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year 
 --basis.
 
-SELECT*
-FROM salaries
+--Tidying up data to use in Excel- teams by year with total salary per year and wins per year.
+/*WITH tidied_table AS(
+					SELECT yearid,teamid,name,SUM(salary) AS total_salary
+					FROM salaries
+					LEFT JOIN teams
+			 		USING(yearid,teamid)
+					GROUP BY yearid,teamid,name
+					ORDER BY yearid)
+SELECT yearid,teamid,tidied_table.name,total_salary,teams.w AS team_wins
+FROM tidied_table
+LEFT JOIN teams
+USING(yearid,teamid)
+WHERE yearid>=2000*/
+
+--There is a very slight positive correlation between number of wins and team salary.
+--See excel sheet in project folder for more info.
+
+--2. In this question, you will explore the connection between number of wins and attendance.
+--Does there appear to be any correlation between attendance at home games and number of wins?
+--Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? 
+--Making the playoffs means either being a division winner or a wild card winner.
+
+--Tidying up data for Excel-table by team and year, with average home attendance and number of wins
+
+/*WITH fixed_table AS
+					(SELECT year AS yearid,team AS teamid,games,attendance,ROUND(attendance::decimal/games::decimal,0) AS avg_attendance
+					FROM homegames
+					WHERE year>=2000)
+SELECT yearid,teamid,avg_attendance,teams.w
+FROM fixed_table
+LEFT JOIN teams
+USING(yearid,teamid)*/
+
+--Creating two tables, one has team and years for every team to win the WS or WC or div and their average attendance that year.
+--The other table has the same teams and years as the previous but the average attendance for the team's next year.
+
+/*WITH fixed_table AS
+					(SELECT year AS yearid,team AS teamid,ROUND(attendance::decimal/games::decimal,0) AS avg_attendance
+					FROM homegames
+					WHERE year>=1995),
+	table_missing_next_year AS			
+					(SELECT yearid,teamid,avg_attendance,wswin,wcwin,divwin
+					FROM fixed_table
+					LEFT JOIN teams
+					USING(yearid,teamid)
+					WHERE wswin='Y'
+					OR wcwin='Y'
+					OR divwin='Y'),
+	next_year AS
+					(SELECT yearid AS year_info,yearid+1 AS yearid,teamid
+					FROM table_missing_next_year),
+	finished_table AS
+					(SELECT year_info,teamid,ROUND(attendance::decimal/games::decimal,0) AS avg_attendance_next_year
+					FROM next_year
+					LEFT JOIN homegames
+					ON(next_year.yearid=homegames.year AND next_year.teamid=homegames.team))
+					
+--Combining previously mentioned tables.
+
+SELECT yearid,table_missing_next_year.teamid,avg_attendance,avg_attendance_next_year,wswin,wcwin,divwin
+FROM table_missing_next_year
+LEFT JOIN finished_table
+ON(table_missing_next_year.yearid=finished_table.year_info 
+   AND table_missing_next_year.teamid=finished_table.teamid)*/
+
+--There is a weak positive correlation between average attendance at home games and number of wins. (years analyzed: 2000-2016)
+
+--There is a weak and very weak positive correlation with average attendance after a WS or a playoff year, respectively. WS winners 
+--averaged approx. 1300 more people per game the next year- a 3.7% gain. 18/25 of said teams had attendance growth from one year to the 
+--next. (years analyzed: 1995-2016)
+
+--Teams making the playoffs averaged approx. 300 more people per game the next year- a 0.9% gain. 101/181 of said teams had attendance 
+--growth from year to year. (years analyzed: 1995-2016)
+--See excel sheet in project folder for more info.
+
+--3. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. 
+--Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed 
+--pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely 
+--to make it into the hall of fame?
+
+--Pulling basic info: right and left handed pitchers by number of total pitchers, number of batters faced (on average), 
+--and number of batters faced (total).
+
+/*SELECT people.throws,COUNT(*) AS num_pitchers,
+	ROUND(AVG(bfp),0) AS avg_batters_faced_by_pitcher,
+	SUM(bfp) AS total_batters_faced
+FROM pitching
+LEFT JOIN people
+USING(playerid)
+WHERE throws='R' 
+	OR throws='L'
+GROUP BY throws*/
+
+--Not sure how to determine % of time player would face a leftie without just taking number from SQL table and using a calculator on them.
+--Ask about this! (also, what does 'S' mean for throwing? sideways?)
+
+--Finding the number of Cy Young Award winners by their throwing arm.
+/*SELECT people.throws,COUNT(people.throws)
+FROM awardsplayers
+LEFT JOIN people
+USING(playerid)
+WHERE awardid='Cy Young Award'
+GROUP BY people.throws*/
+
+--Finding the number of HoFers by their throwing arm.
+/*WITH HOFers_by_arm AS 
+					(SELECT DISTINCT playerid,people.throws
+					FROM halloffame
+					RIGHT JOIN pitching
+					USING(playerid)
+					LEFT JOIN people
+					USING(playerid)
+					WHERE inducted='Y')
+SELECT throws,COUNT(throws)
+FROM HOFers_by_arm
+GROUP BY throws*/
+
+--(From left to right: throwing arm,number of pitchers, and average number of batters faced)
+--"R"	32124	350.42507817385865
+--"L"	12500	328.5967470555244
+--A batter will face a left handed pitcher 26.8% of the time. (This is based on all data from the database, it may not be accurate in 
+--modern MLB.) Left handed pitchers are relatively rare- 28.0% of all pitchers are left handed.
+
+--Left handed pitchers are more likely to win the Cy Young Award. There are 75 right and 37 left handed pitchers who have won the Cy 
+--Young Award (as of 2016). Lefties make up 33.0% of the awarded- 5% more than the proportion of left handed pitchers overall.
+
+--Left handed pitchers are less likely to be inducted into the Hall of Fame. There are 78 right and 23 left handed pitchers who have been 
+--inducted into the Hall of Fame (as of 2016). Lefties make up 22.8% of those inducted- 5% less than the preportion of left handed 
+--pitchers overall.
+
+
+
